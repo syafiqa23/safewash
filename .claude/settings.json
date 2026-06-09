@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"D:\\\\Pengembangan Startup Digital\\\\projectpsd\\\\safewash\\\\app\\\\Http\\\\Middleware\" -File)",
+      "Bash(Get-ChildItem -Path \"D:\\\\Pengembangan Startup Digital\\\\projectpsd\\\\safewash\\\\app\\\\Policies\" -File)",
+      "Bash(Get-ChildItem -Path \"D:\\\\Pengembangan Startup Digital\\\\projectpsd\\\\safewash\\\\database\\\\migrations\" -File)",
+      "Bash(grep -n \"^use App\\\\\\\\\\\\Models\\\\\\\\\\\\Claim\" app/Http/Controllers/AdminController.php)",
+      "Bash(grep -n \"\\\\\\\\\\\\\\\\App\\\\\\\\\\\\\\\\Models\\\\\\\\\\\\\\\\PaymentTransaction\\\\|\\\\\\\\\\\\\\\\Illuminate\\\\\\\\\\\\\\\\Support\\\\\\\\\\\\\\\\Carbon\" app/Http/Controllers/AdminController.php)",
+      "PowerShell(Get-ChildItem -Path \"D:\\\\Pengembangan Startup Digital\\\\projectpsd\\\\safewash\" -Force | Select-Object Name, @{Name=\"Type\";Expression={if\\($_.PSIsContainer\\){\"Directory\"}else{\"File\"}}} | Format-Table -AutoSize)",
+      "Bash(findstr /I \"marketplace profile merchant admin settlement reports customer claims create\")",
+      "Bash(Select-String -Pattern \"marketplace|profile|merchant\\\\.|settlement|reports|admin.customer|claims/create|orders/create\")",
+      "Bash(Get-ChildItem -Path \"D:\\\\Pengembangan Startup Digital\\\\projectpsd\\\\safewash\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(vendor/bin/phpunit tests/Feature/ExampleTest.php --verbose)",
+      "Bash(vendor/bin/phpunit tests/Feature/ExampleTest.php --debug)",
+      "Bash(php -r ' *)",
+      "Bash(vendor/bin/phpunit tests/Feature/ExampleTest.php)",
+      "Bash(vendor/bin/phpunit tests/Feature/ExampleTest.php --display-incomplete --display-skipped)",
+      "Bash(grep -n '<?php\\\\|undefined\\\\|$order' resources/views/customer/checkout.blade.php)",
+      "Bash(Get-Content storage/logs/laravel.log -Tail 80)"
+    ]
+  }
+}

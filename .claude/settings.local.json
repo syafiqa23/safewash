@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php artisan *)",
+      "Bash(python -c \"import sys,json; routes=json.load\\(sys.stdin\\); [print\\(r['name'], r['uri']\\) for r in routes if r.get\\('name'\\)]\")",
+      "Bash(grep -n \"^    .hp-\\\\|^    /\\\\* ──\\\\|^    @media\\\\|^    \\\\.hp-\\\\|^</style>\" resources/views/home.blade.php)",
+      "Bash(python -c ' *)"
+    ]
+  }
+}
