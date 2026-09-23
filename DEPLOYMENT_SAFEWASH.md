@@ -1,209 +1,105 @@
 # Deployment SafeWash
 
-## 1. Target Deployment
+Panduan deployment SafeWash ke VPS Ubuntu dengan Nginx, PHP-FPM, MySQL, Supervisor, dan Certbot. Ganti `domain-anda.com` dengan domain publik sebenarnya dan simpan credential hanya di `.env` server.
 
-Dokumen ini menyiapkan SafeWash agar bisa dijalankan pada:
+## Persiapan server
 
-- `Laragon` untuk localhost / demo kampus
-- `VPS` dengan Nginx + PHP-FPM untuk domain publik dan webhook live
-
-Provider live yang direkomendasikan untuk SafeWash:
-
-- `Midtrans` sebagai payment gateway utama
-- `Meta WhatsApp Cloud API` sebagai notifikasi resmi
-
-## 2. Persiapan Umum
-
-Jalankan dari folder project:
+Pasang PHP 8.2+, ekstensi PHP Laravel, Composer, Node.js, MySQL/MariaDB, Nginx, Supervisor, dan Certbot.
 
 ```bash
-composer install
-copy .env.example .env
-php artisan key:generate
-php artisan migrate --seed
-php artisan storage:link
+sudo apt update
+sudo apt install nginx mysql-server supervisor certbot python3-certbot-nginx
 ```
 
-Jika ingin langsung mode live Midtrans, gunakan acuan dari file:
+Upload source ke `/var/www/safewash`, lalu jalankan:
 
-- `.env.midtrans.live.example`
-
-## 3. Deployment Laragon
-
-### Lokasi project
-
-Simpan project SafeWash di folder yang dibaca Laragon, misalnya:
-
-```text
-C:\laragon\www\safewash
+```bash
+cd /var/www/safewash
+composer install --optimize-autoloader --no-dev
+npm ci
+npm run build
+cp .env.example .env
+php artisan key:generate --force
 ```
 
-### Langkah setup
+## Konfigurasi production
 
-1. Buka Laragon.
-2. Aktifkan `Apache` atau `Nginx`, serta `MySQL`.
-3. Buat database `safewash`.
-4. Sesuaikan `.env`:
+Isi `.env` server dengan nilai nyata. Jangan commit file `.env` atau credential ke Git.
 
 ```env
-APP_URL=http://safewash.test
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://domain-anda.com
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_DATABASE=safewash
-DB_USERNAME=root
-DB_PASSWORD=
+DB_USERNAME=safewash
+DB_PASSWORD=isi_password_database
+SESSION_DRIVER=database
+CACHE_STORE=database
+QUEUE_CONNECTION=database
+SAFEWASH_PAYMENT_PROVIDER=simulator
+SAFEWASH_WHATSAPP_ENABLED=false
 ```
 
-5. Jalankan:
+Mode simulator cocok untuk demo. Untuk transaksi nyata, pilih `midtrans` atau `xendit` dan isi credential resmi provider. Aktifkan WhatsApp hanya setelah token Meta WhatsApp Cloud API valid tersedia.
 
-```bash
-php artisan migrate:fresh --seed
-php artisan config:clear
-php artisan cache:clear
-```
+## Database dan permission
 
-### Catatan webhook di Laragon
-
-Webhook live dari Midtrans/Meta membutuhkan URL publik HTTPS. Karena `Laragon` lokal tidak publik, gunakan salah satu:
-
-- `ngrok`
-- `Cloudflare Tunnel`
-
-Contoh ngrok:
-
-```bash
-ngrok http http://safewash.test
-```
-
-Setelah itu pasang URL HTTPS dari ngrok ke:
-
-- Midtrans notification URL
-- WhatsApp webhook URL
-
-## 4. Deployment VPS
-
-### Stack yang direkomendasikan
-
-- Ubuntu 22.04 / 24.04
-- Nginx
-- PHP 8.2+
-- MySQL / MariaDB
-- Supervisor
-- Certbot SSL
-
-### Struktur deployment
-
-Contoh lokasi:
-
-```text
-/var/www/safewash
-```
-
-### Langkah server
-
-1. Upload project ke VPS.
-2. Install dependency:
-
-```bash
-composer install --optimize-autoloader --no-dev
-```
-
-3. Copy env:
-
-```bash
-cp .env.midtrans.live.example .env
-php artisan key:generate
-```
-
-4. Sesuaikan isi `.env` dengan:
-
-- domain final
-- database production
-- Midtrans live key
-- WhatsApp Cloud API token
-
-5. Jalankan:
+Buat database serta user MySQL, kemudian jalankan migrasi production:
 
 ```bash
 php artisan migrate --force
-php artisan db:seed --force
 php artisan storage:link
+sudo chown -R www-data:www-data storage bootstrap/cache
+sudo find storage bootstrap/cache -type d -exec chmod 775 {} \;
+sudo find storage bootstrap/cache -type f -exec chmod 664 {} \;
+```
+
+## Nginx dan SSL
+
+Salin `deploy/nginx/safewash.conf.example` ke konfigurasi Nginx, ganti domain, lalu jalankan:
+
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+sudo certbot --nginx -d domain-anda.com -d www.domain-anda.com
+```
+
+Certbot mengaktifkan HTTPS. Webhook payment dan WhatsApp harus memakai URL HTTPS publik.
+
+## Queue worker Supervisor
+
+Salin konfigurasi dari `deploy/supervisor/safewash-worker.conf.example`, lalu jalankan:
+
+```bash
+sudo supervisorctl reread
+sudo supervisorctl update
+sudo supervisorctl restart safewash-worker:*
+sudo supervisorctl status
+```
+
+## Optimasi dan verifikasi
+
+```bash
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
+php artisan about
 ```
 
-### Queue worker
+Periksa halaman utama, login, pembuatan order, queue worker, storage link, payment simulator, dan endpoint webhook setelah deployment.
 
-Jika nanti notifikasi atau job diperluas, aktifkan supervisor:
+## Checklist production
 
-```bash
-php artisan queue:work --tries=3 --timeout=120
-```
-
-Contoh file supervisor ada di:
-
-- `deploy/supervisor/safewash-worker.conf.example`
-
-### Nginx config
-
-Contoh config tersedia di:
-
-- `deploy/nginx/safewash.conf.example`
-
-## 5. Webhook yang Harus Diaktifkan
-
-### Midtrans
-
-URL:
-
-```text
-https://domain-kamu.com/webhooks/payments/midtrans
-```
-
-### WhatsApp Cloud API
-
-Verification URL:
-
-```text
-https://domain-kamu.com/webhooks/whatsapp
-```
-
-Callback URL:
-
-```text
-https://domain-kamu.com/webhooks/whatsapp
-```
-
-Verify token:
-
-```text
-sesuaikan dengan nilai whatsapp_verify_token di admin integrations atau .env
-```
-
-## 6. Production Checklist
-
-- `APP_DEBUG=false`
-- SSL aktif
-- `APP_URL` sesuai domain final
-- cron/queue worker aktif jika diperlukan
-- database backup aktif
-- Midtrans live key valid
-- WhatsApp access token valid
-- webhook bisa diakses dari internet
-- tombol generate payment link berhasil membuat checkout
-
-## 7. Catatan Akhir
-
-Untuk penggunaan kampus atau demo dosen:
-
-- Laragon + ngrok sudah cukup
-- gunakan Midtrans sandbox
-- gunakan WhatsApp mode simulated jika token live belum siap
-
-Untuk produksi sungguhan:
-
-- gunakan VPS atau hosting yang mendukung Laravel secara penuh
-- aktifkan HTTPS
-- gunakan domain publik permanen
+- [ ] Domain DNS mengarah ke IP VPS.
+- [ ] `APP_ENV=production` dan `APP_DEBUG=false`.
+- [ ] `APP_URL` memakai domain HTTPS yang benar.
+- [ ] Database memakai MySQL/PostgreSQL, bukan SQLite.
+- [ ] `php artisan migrate --force` selesai tanpa error.
+- [ ] `storage` dan `bootstrap/cache` writable oleh web server.
+- [ ] SSL aktif dan HTTP redirect ke HTTPS.
+- [ ] Supervisor queue worker berstatus `RUNNING`.
+- [ ] Backup database terjadwal.
+- [ ] Credential payment/WhatsApp valid dan tidak tersimpan di Git.

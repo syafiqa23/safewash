@@ -1,6 +1,14 @@
 # SafeWash
 
-Prototype startup laundry digital berbasis Laravel untuk merchant laundry, customer, dan admin platform. Proyek ini sekarang sudah `final/live-ready` dengan mode lokal `simulator` dan mode `live` untuk integrasi payment gateway serta WhatsApp resmi.
+SafeWash adalah sistem manajemen laundry berbasis Laravel untuk merchant, customer, dan admin platform. Aplikasi mendukung mode simulator untuk demo serta integrasi live payment gateway dan WhatsApp resmi.
+
+## Tech stack
+
+- Laravel 12 dan PHP 8.2+
+- Blade, Vite, Tailwind CSS, dan JavaScript frontend
+- MySQL/MariaDB atau PostgreSQL untuk production
+- Nginx dengan PHP-FPM untuk deployment VPS
+- Supervisor untuk queue worker
 
 ## Fitur utama
 
@@ -31,15 +39,60 @@ Prototype startup laundry digital berbasis Laravel untuk merchant laundry, custo
 - Merchant 2 / white-label: `merchant2@safewash.test` / `password`
 - Customer: `customer@safewash.test` / `password`
 
-## Menjalankan project
+## Requirements
+
+- PHP 8.2+ dengan ekstensi Laravel, Composer 2, Node.js 20+, dan npm
+- MySQL/MariaDB atau PostgreSQL untuk deployment production
+- Nginx dan PHP-FPM jika dijalankan di VPS
+
+## Local development
 
 ```bash
-cd safewash
+cp .env.example .env
+php artisan key:generate
 php artisan migrate:fresh --seed
-php artisan serve
+npm install
+npm run dev
 ```
 
-Lalu buka `http://127.0.0.1:8000`.
+Pada terminal lain, jalankan `php artisan serve` dan buka `http://127.0.0.1:8000`. Untuk local development, ubah `APP_ENV=local`, `APP_DEBUG=true`, dan `APP_URL=http://127.0.0.1:8000` di `.env`.
+
+## Environment variables
+
+`.env.example` adalah template yang aman untuk disalin ke `.env`. `.env` tidak
+boleh di-commit. Minimal production configuration:
+
+```env
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://domain-anda.com
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=safewash
+DB_USERNAME=safewash
+DB_PASSWORD=isi_password_database
+SAFEWASH_PAYMENT_PROVIDER=simulator
+SAFEWASH_WHATSAPP_ENABLED=false
+```
+
+Payment live dan WhatsApp hanya boleh diaktifkan dengan credential resmi yang
+disimpan di environment server, bukan di source code atau Git.
+
+## Production build
+
+```bash
+composer install --no-dev --optimize-autoloader
+npm ci
+npm run build
+php artisan migrate --force
+php artisan storage:link
+php artisan optimize
+```
+
+Document root web server harus menunjuk ke `/var/www/safewash/public`, bukan ke
+root repository. PHP-FPM menjalankan `public/index.php` dan Supervisor menjaga
+queue worker tetap aktif.
 
 ## Menyalakan mode live
 
@@ -127,6 +180,7 @@ php artisan cache:clear
 
 ## Dokumen pendukung
 
+- `DEPLOYMENT.md`
 - `DOKUMEN_SAFEWASH_FRS_E2E_EXEC_SUMMARY.md`
 - `MODEL_BISNIS_SAFEWASH.md`
 - `DEPLOYMENT_SAFEWASH.md`

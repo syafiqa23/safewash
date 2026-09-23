@@ -1,8 +1,19 @@
 server {
     listen 80;
-    server_name safewash.yourdomain.com;
+    server_name domain-anda.com www.domain-anda.com;
+
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name domain-anda.com www.domain-anda.com;
+
     root /var/www/safewash/public;
     index index.php index.html;
+
+    ssl_certificate /etc/letsencrypt/live/domain-anda.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/domain-anda.com/privkey.pem;
 
     location / {
         try_files $uri $uri/ /index.php?$query_string;

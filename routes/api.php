@@ -21,10 +21,27 @@ Route::get('/track/{code}', function (string $code) {
 });
 
 // Protected — session auth required (StartSession appended to api group via bootstrap/app.php)
-Route::middleware('auth')->group(function (): void {
+$canAccessOrder = static function (Request $request, LaundryOrder $order): bool {
+    $user = $request->user();
+
+    return $user->isAdmin()
+        || ($user->isMerchant() && $order->laundry?->user_id === $user->id)
+        || ($user->isCustomer() && $order->customer_id === $user->id);
+};
+
+Route::middleware('auth')->group(function () use ($canAccessOrder): void {
 
     Route::get('/orders', function () {
-        return LaundryOrder::with(['laundry', 'items', 'trackingUpdates', 'claims', 'paymentTransaction', 'deliveryRequest'])->latest()->get();
+        $user = request()->user();
+        $orders = LaundryOrder::with(['laundry', 'items', 'trackingUpdates', 'claims', 'paymentTransaction', 'deliveryRequest']);
+
+        if ($user->isMerchant()) {
+            $orders->whereHas('laundry', fn ($query) => $query->where('user_id', $user->id));
+        } elseif ($user->isCustomer()) {
+            $orders->where('customer_id', $user->id);
+        }
+
+        return $orders->latest()->get();
     });
 
     Route::post('/orders', function (Request $request) {
@@ -38,6 +55,13 @@ Route::middleware('auth')->group(function (): void {
             'total_price' => ['required', 'numeric'],
             'payment_method' => ['nullable', 'in:cash,qris,ewallet,virtual_account'],
         ]);
+
+        abort_unless(
+            $request->user()->isAdmin()
+                || ($request->user()->isMerchant()
+                    && $request->user()->laundries()->whereKey($data['laundry_id'])->exists()),
+            403
+        );
 
         $order = LaundryOrder::create($data + [
             'status' => 'received',
@@ -69,9 +93,11 @@ Route::middleware('auth')->group(function (): void {
         ]);
 
         return response()->json($order->load('trackingUpdates'), 201);
-    });
+    })->middleware('role:admin,merchant');
 
-    Route::patch('/orders/{order}', function (Request $request, LaundryOrder $order) {
+    Route::patch('/orders/{order}', function (Request $request, LaundryOrder $order) use ($canAccessOrder) {
+        abort_unless($canAccessOrder($request, $order), 403);
+
         $data = $request->validate([
             'status' => ['required', 'string'],
             'title' => ['required', 'string'],
@@ -102,9 +128,11 @@ Route::middleware('auth')->group(function (): void {
             'order' => $order->fresh(),
             'tracking_update' => $update,
         ]);
-    });
+    })->middleware('role:admin,merchant');
 
-    Route::post('/orders/{order}/delivery', function (Request $request, LaundryOrder $order) {
+    Route::post('/orders/{order}/delivery', function (Request $request, LaundryOrder $order) use ($canAccessOrder) {
+        abort_unless($canAccessOrder($request, $order), 403);
+
         $data = $request->validate([
             'service_type' => ['required', 'in:none,pickup,delivery,round_trip'],
             'partner_name' => ['required', 'string'],
@@ -120,9 +148,9 @@ Route::middleware('auth')->group(function (): void {
         );
 
         return response()->json($delivery);
-    });
+    })->middleware('role:admin,merchant');
 
-    Route::post('/claims', function (Request $request) {
+    Route::post('/claims', function (Request $request) use ($canAccessOrder) {
         $data = $request->validate([
             'laundry_order_id' => ['required', 'exists:laundry_orders,id'],
             'claimant_name' => ['required', 'string'],
@@ -130,6 +158,9 @@ Route::middleware('auth')->group(function (): void {
             'item_name' => ['required', 'string'],
             'description' => ['required', 'string'],
         ]);
+
+        $order = LaundryOrder::with('laundry')->findOrFail($data['laundry_order_id']);
+        abort_unless($canAccessOrder($request, $order), 403);
 
         $claim = Claim::create($data + [
             'status' => 'submitted',

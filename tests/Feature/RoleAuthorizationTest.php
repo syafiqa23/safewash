@@ -197,6 +197,57 @@ class RoleAuthorizationTest extends TestCase
             ->assertOk();
     }
 
+    public function test_customer_api_only_lists_their_own_orders(): void
+    {
+        $otherCustomer = User::factory()->create(['role' => 'customer', 'phone' => '085500000099']);
+        LaundryOrder::create([
+            'laundry_id'     => $this->laundry->id,
+            'customer_id'    => $otherCustomer->id,
+            'customer_name'  => $otherCustomer->name,
+            'customer_email' => $otherCustomer->email,
+            'customer_phone' => $otherCustomer->phone,
+            'service_type'   => 'cuci',
+            'weight_kg'      => 2,
+            'total_price'    => 20000,
+            'status'         => 'received',
+            'payment_status' => 'pending',
+            'payment_method' => 'cash',
+        ]);
+
+        $response = $this->actingAs($this->customer)->getJson('/api/orders');
+
+        $response->assertOk()->assertJsonCount(1);
+        $this->assertSame($this->order->id, $response->json('0.id'));
+    }
+
+    public function test_customer_api_cannot_claim_another_customers_order(): void
+    {
+        $otherCustomer = User::factory()->create(['role' => 'customer', 'phone' => '085500000099']);
+        $otherOrder = LaundryOrder::create([
+            'laundry_id'     => $this->laundry->id,
+            'customer_id'    => $otherCustomer->id,
+            'customer_name'  => $otherCustomer->name,
+            'customer_email' => $otherCustomer->email,
+            'customer_phone' => $otherCustomer->phone,
+            'service_type'   => 'cuci',
+            'weight_kg'      => 2,
+            'total_price'    => 20000,
+            'status'         => 'received',
+            'payment_status' => 'pending',
+            'payment_method' => 'cash',
+        ]);
+
+        $this->actingAs($this->customer)
+            ->postJson('/api/claims', [
+                'laundry_order_id' => $otherOrder->id,
+                'claimant_name'    => $this->customer->name,
+                'claimant_contact' => $this->customer->phone,
+                'item_name'        => 'Baju',
+                'description'      => 'Unauthorized claim',
+            ])
+            ->assertForbidden();
+    }
+
     // ── Notification pages ────────────────────────────────────────────────────
 
     public function test_notification_index_accessible_by_all_authenticated_roles(): void
